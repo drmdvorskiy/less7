@@ -1,0 +1,96 @@
+---
+- name: Installs packages
+  apt:
+    update_cache: yes
+    state: latest
+    pkg:
+    - wget
+    - gnupg2
+    - lsb-release
+    - python3-mysqldb
+
+- name: Adds percona key
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: "{{ item }}"
+    state: present
+  loop:
+    - 9334A25F8507EFA5
+
+- name: Adds percona repositories
+  apt_repository:
+    repo: "{{ item }}"
+    state: present
+  loop:
+    - deb http://repo.percona.com/pxc-80/apt focal main
+    - deb http://repo.percona.com/tools/apt focal main
+    - deb http://repo.percona.com/prel/apt focal main
+
+- name: Sets root password
+  debconf:
+    name: "percona-xtradb-cluster-server"
+    question: "percona-xtradb-cluster-server/{{ item }}"
+    value: "{{ pxc_root_password }}"
+    vtype: 'password'
+  loop:
+    - 'root_password'
+    - 'root_password_again'
+
+- name: "Use Strong Password Encryption (RECOMMENDED)"
+  debconf:
+    name: "percona-xtradb-cluster-server"
+    question: "percona-xtradb-cluster-server/default-auth-override"
+    value: "Use Strong Password Encryption (RECOMMENDED)"
+    vtype: select
+
+- name: Install percona-server
+  apt:
+    update_cache: yes
+    state: present
+    pkg:
+    - percona-xtradb-cluster
+
+- name: stop mysql
+  systemd:
+    state: stopped
+    name: mysql
+
+- name: Configure my.cnf
+  template:
+    src: "roles/install-pxc/templates/mysqld.cnf.j2"
+    dest: /etc/mysql/mysql.conf.d/mysqld.cnf
+
+- name: bootstrap
+  systemd:
+    state: started
+    name: mysql@bootstrap.service
+  when: ansible_hostname == "pxc1"
+
+- name: start mysql
+  systemd:
+    state: started
+    name: mysql
+  when: ansible_hostname != "pxc1"
+
+- name: create user proxysql
+  no_log: True
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ pxc_root_password }}"
+    name: proxysql
+    host: "%"
+    password: "{{ pxc_root_password }}"
+    state: present
+  when: ansible_hostname == "pxc1"
+
+- name: create user sbuser
+  no_log: True
+  mysql_user:
+    login_user: "root"
+    login_password: "{{ pxc_root_password }}"
+    name: 'sbuser'
+    host: '%'
+    password: "{{ pxc_root_password }}"
+    priv: '*.*:ALL'
+    state: 'present'
+  when: ansible_hostname == "pxc1"

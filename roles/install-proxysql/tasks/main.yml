@@ -1,0 +1,100 @@
+---
+- name: Installs packages
+  apt:
+    update_cache: yes
+    state: latest
+    pkg:
+    - wget
+    - gnupg2
+    - lsb-release
+
+- name: Adds percona key
+  apt_key:
+    keyserver: keyserver.ubuntu.com
+    id: "{{ item }}"
+    state: present
+  loop:
+    - 9334A25F8507EFA5
+
+- name: Adds percona repositories
+  apt_repository:
+    repo: "{{ item }}"
+    state: present
+  loop:
+    - deb http://repo.percona.com/pxc-80/apt focal main
+    - deb http://repo.percona.com/tools/apt focal main
+    - deb http://repo.percona.com/prel/apt focal main
+
+- name: Install proxysql2
+  apt:
+    update_cache: yes
+    state: present
+    pkg:
+    - percona-xtradb-cluster-client
+    - proxysql2
+    - python3-mysqldb
+
+- name: Adding cluster nodes to ProxySQL
+  proxysql_backend_servers:
+    login_host: "127.0.0.1"
+    login_user: "admin"
+    login_password: "admin"
+    login_port: 6032
+    hostgroup_id: 1
+    hostname: "{{ item }}"
+    port: 3306
+    weight: 1
+    max_connections: 1000
+    state: "present"
+    status: "ONLINE"
+    load_to_runtime: yes
+    save_to_disk: yes
+  loop:
+    - 192.168.6.3
+    - 192.168.6.4
+    - 192.168.6.5
+
+- name: Adding replication hostgroups
+  proxysql_replication_hostgroups:
+    login_host: "127.0.0.1"
+    login_user: "admin"
+    login_password: "admin"
+    login_port: 6032
+    writer_hostgroup: 0
+    reader_hostgroup: 1
+    comment: "cluster1"
+    load_to_runtime: yes
+    save_to_disk: yes
+
+- name: Set global variables mysql-monitor-username
+  proxysql_global_variables:
+    login_host: "127.0.0.1"
+    login_user: "admin"
+    login_password: "admin"
+    login_port: 6032
+    variable: "mysql-monitor_username"
+    value: "proxysql"
+    load_to_runtime: yes
+    save_to_disk: yes
+
+- name: Set global variables mysql-monitor-password
+  proxysql_global_variables:
+    login_host: "127.0.0.1"
+    login_user: "admin"
+    login_password: "admin"
+    login_port: 6032
+    variable: "mysql-monitor_password"
+    value: "{{ monit_passwd }}"
+    load_to_runtime: yes
+    save_to_disk: yes
+
+- name: Create sbuser
+  proxysql_mysql_users:
+    login_host: "127.0.0.1"
+    login_user: "admin"
+    login_password: "admin"
+    login_port: 6032
+    username: "sbuser"
+    password: "{{ monit_passwd }}"
+    load_to_runtime: yes
+    save_to_disk: yes

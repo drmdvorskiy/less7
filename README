@@ -1,0 +1,5 @@
+- перейти в директорию с проектом и запустить
+vagrant up
+ansible-playbook -u vagrant -i my.invent --private-key key/id_rsa main.yml
+
+стенд был собран аналогично что в лекции. Кластер PXC и на него балансит proxysql.

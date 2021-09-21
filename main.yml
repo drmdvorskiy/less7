@@ -1,0 +1,12 @@
+---
+- name: install pxc
+  become: true
+  hosts: pxc
+  roles:
+    - role: install-pxc
+
+- name: install proxysql
+  become: true
+  hosts: proxysql
+  roles:
+    - role: install-proxysql
